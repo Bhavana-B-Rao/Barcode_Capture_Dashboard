@@ -1,0 +1,1717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barcode Detection Analytics Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .header {
+            grid-column: 1 / -1;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+        
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .barcode-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .barcode-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #27ae60;
+        }
+        
+        .barcode-id {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .barcode-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 0.8em;
+            color: #7f8c8d;
+            margin-top: 4px;
+        }
+        
+        .source-tag {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .source-dmtx { background: #e74c3c; }
+        .source-zbar { background: #f39c12; }
+        
+        .barcode-count {
+            background: #3498db;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+        }
+        
+        .upload-section {
+            grid-column: 1 / -1;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .upload-area {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .upload-btn {
+            background: #3498db;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+        
+        .paste-area {
+            width: 100%;
+            max-width: 600px;
+            height: 150px;
+            padding: 15px;
+            border: 2px dashed #bdc3c7;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            resize: vertical;
+            margin-top: 15px;
+        }
+        
+        .analyze-btn {
+            background: #27ae60;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s ease;
+        }
+        
+        .analyze-btn:hover {
+            background: #229954;
+        }
+        
+        #fileInput, #manifestInput {
+            display: none;
+        }
+        
+        .session-info {
+            background: #e8f5e8;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border-left: 4px solid #27ae60;
+        }
+        
+        .session-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .session-stat {
+            text-align: center;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .session-stat-number {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 1.1em;
+        }
+        
+        .session-stat-label {
+            color: #7f8c8d;
+            font-size: 0.8em;
+            margin-top: 4px;
+        }
+        
+        .no-data {
+            text-align: center;
+            color: #7f8c8d;
+            padding: 40px;
+            font-style: italic;
+        }
+        
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+            display: none;
+        }
+
+        .manifest-validation {
+            border: 2px solid #27ae60;
+        }
+
+        .manifest-validation h2 {
+            border-bottom-color: #27ae60;
+        }
+
+        .time-range-analysis {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+
+        .time-range-analysis p {
+            margin: 8px 0;
+            line-height: 1.4;
+        }
+
+        .missing-pieces-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .barcode-count.missed {
+            background: #e74c3c;
+        }
+
+        .barcode-count.captured {
+            background: #27ae60;
+        }
+
+        .barcode-count.extra {
+            background: #9b59b6;
+        }
+
+        .barcode-count.low-priority {
+            background: #3498db;
+        }
+
+        /* Expanded stats grid for more categories */
+        .manifest-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid, .manifest-stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .dashboard {
+                grid-template-columns: 1fr;
+                padding: 10px;
+            }
+            
+            .missing-pieces-controls {
+                flex-direction: column;
+            }
+            
+            .missing-pieces-controls button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="upload-section">
+            <h2>Upload Files for Analysis</h2>
+            <p>Analyze ROS2 barcode detection logs with manifest validation and performance metrics</p>
+            <div class="upload-area">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <h4 style="color: #2c3e50; margin-bottom: 10px;">Barcode Detection Log</h4>
+                        <input type="file" id="fileInput" accept=".log,.txt">
+                        <button class="upload-btn" onclick="document.getElementById('fileInput').click()">Choose Log File</button>
+                    </div>
+                    <div>
+                        <h4 style="color: #2c3e50; margin-bottom: 10px;">Manifest/Consist File</h4>
+                        <input type="file" id="manifestInput" accept=".csv,.txt">
+                        <button class="upload-btn" onclick="document.getElementById('manifestInput').click()">Choose Manifest File</button>
+                    </div>
+                </div>
+                
+                <div style="text-align: left; width: 100%; max-width: 600px;">
+                    <h4 style="color: #2c3e50; margin-bottom: 10px;">Alternative: Copy & Paste Log Content</h4>
+                    <textarea id="logContent" class="paste-area" placeholder="Paste your barcode detection log content here..."></textarea>
+                    <button id="analyzeButton" class="analyze-btn" style="margin-top: 10px;">Analyze Pasted Content</button>
+                </div>
+                
+                <div style="text-align: center; width: 100%; margin-top: 20px;">
+                    <button id="exportButton" class="analyze-btn" style="background: #9b59b6; display: none;">Export Shareable Dashboard</button>
+                    <p style="font-size: 0.9em; color: #666; margin-top: 10px; display: none;" id="exportInfo">
+                        Creates a self-contained HTML file with your analysis results embedded
+                    </p>
+                </div>
+                
+                <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; font-size: 0.9em; color: #666;">
+                    <strong>Expected Manifest Format:</strong> CSV with columns like PRONUMBER, PIECES, PIECE_NUMBER, LOAD_TSTAMP, etc.
+                </div>
+            </div>
+        </div>
+        
+        <div class="header">
+            <h1>Barcode Detection Analytics Dashboard</h1>
+            <p>Real-time analysis of libdmtx and zbar detection performance</p>
+            <div id="sessionInfo" style="margin-top: 15px; font-size: 0.9em; color: #7f8c8d;">
+                Upload a log file to begin analysis
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Detection Summary</h2>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalDetections">0</div>
+                    <div class="stat-label">Total Valid Detections</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #e74c3c;">
+                    <div class="stat-number" id="dmtxDetections">0</div>
+                    <div class="stat-label">DMTX Detections</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #f39c12;">
+                    <div class="stat-number" id="zbarDetections">0</div>
+                    <div class="stat-label">ZBar Detections</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="uniqueBarcodes">0</div>
+                    <div class="stat-label">Total Unique Barcodes</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #e74c3c;">
+                    <div class="stat-number" id="uniqueDmtx">0</div>
+                    <div class="stat-label">Unique DMTX</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #f39c12;">
+                    <div class="stat-number" id="uniqueZbar">0</div>
+                    <div class="stat-label">Unique ZBar</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #e67e22;">
+                    <div class="stat-number" id="invalidDetections">0</div>
+                    <div class="stat-label">Invalid/Filtered</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="successRate">0%</div>
+                    <div class="stat-label">Success Rate</div>
+                </div>
+            </div>
+            
+            <div class="session-info" id="sessionDetails" style="display: none;">
+                <h4 style="color: #2c3e50; margin-bottom: 10px;">Session Information</h4>
+                <div class="session-stats">
+                    <div class="session-stat">
+                        <div class="session-stat-number" id="sessionStart">--</div>
+                        <div class="session-stat-label">Started</div>
+                    </div>
+                    <div class="session-stat">
+                        <div class="session-stat-number" id="sessionEnd">--</div>
+                        <div class="session-stat-label">Ended</div>
+                    </div>
+                    <div class="session-stat">
+                        <div class="session-stat-number" id="sessionDuration">--</div>
+                        <div class="session-stat-label">Duration</div>
+                    </div>
+                    <div class="session-stat">
+                        <div class="session-stat-number" id="detectionRate">--</div>
+                        <div class="session-stat-label">Rate/min</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card manifest-validation" id="manifestCard" style="display: none;">
+            <h2>Manifest Validation - Complete Analysis</h2>
+            <div class="manifest-stats-grid">
+                <div class="stat-item" style="border-left-color: #2c3e50;">
+                    <div class="stat-number" id="totalManifestPieces">0</div>
+                    <div class="stat-label">Total Manifest Pieces</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #e74c3c;">
+                    <div class="stat-number" id="highPriorityPieces">0</div>
+                    <div class="stat-label">High Priority Pieces</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #27ae60;">
+                    <div class="stat-number" id="capturedHighPriority">0</div>
+                    <div class="stat-label">High Priority Captured</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #e74c3c;">
+                    <div class="stat-number" id="missedHighPriority">0</div>
+                    <div class="stat-label">High Priority Missed</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #3498db;">
+                    <div class="stat-number" id="capturedLowPriority">0</div>
+                    <div class="stat-label">Low Priority Captured</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #9b59b6;">
+                    <div class="stat-number" id="extraDetections">0</div>
+                    <div class="stat-label">Extra Detections</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #f39c12;">
+                    <div class="stat-number" id="highPriorityRate">0%</div>
+                    <div class="stat-label">High Priority Rate</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #17a2b8;">
+                    <div class="stat-number" id="overallCaptureRate">0%</div>
+                    <div class="stat-label">Overall Capture Rate</div>
+                </div>
+            </div>
+            
+            <div class="validation-details" style="margin-top: 20px;">
+                <h4 style="color: #2c3e50; margin-bottom: 15px;">Priority Classification</h4>
+                <div class="time-range-info" style="background: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #27ae60; margin-bottom: 15px;">
+                    <p><strong>High Priority:</strong> Packages loaded during detection session AND (dwell time > 3 minutes OR missing unloading timestamp)</p>
+                    <p><strong>Low Priority:</strong> All other detected packages in manifest</p>
+                    <p><strong>Extra Detections:</strong> Packages detected but not found in manifest</p>
+                    <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                        <em>High priority classification requires load time to fall within the detection session window</em>
+                    </p>
+                </div>
+                <h4 style="color: #2c3e50; margin-bottom: 15px;">Time Range Validation</h4>
+                <div class="time-range-info" id="timeRangeInfo">
+                    <p>Upload manifest file to see time range analysis</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Detection Methods</h2>
+            <div class="chart-container">
+                <canvas id="methodChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Detection Timeline</h2>
+            <div class="chart-container">
+                <canvas id="timelineChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="card" id="manifestBreakdownCard" style="display: none;">
+            <h2>Manifest Capture Breakdown</h2>
+            <div class="chart-container">
+                <canvas id="manifestBreakdownChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Unique Barcodes Found</h2>
+            <div class="barcode-list" id="barcodeList">
+                <div class="no-data">No data loaded</div>
+            </div>
+        </div>
+        
+        <div class="card" id="manifestAnalysisCard" style="display: none;">
+            <h2>Manifest Analysis</h2>
+            <div class="missing-pieces-controls" style="margin-bottom: 15px;">
+                <button id="showHighPriorityMissedBtn" class="analyze-btn" style="background: #e74c3c;">High Priority Missed</button>
+                <button id="showHighPriorityCapturedBtn" class="analyze-btn" style="background: #27ae60;">High Priority Captured</button>
+                <button id="showLowPriorityCapturedBtn" class="analyze-btn" style="background: #3498db;">Low Priority Captured</button>
+                <button id="showExtraBtn" class="analyze-btn" style="background: #9b59b6;">Extra Detections</button>
+            </div>
+            <div class="barcode-list" id="manifestAnalysisList">
+                <div class="no-data">Load manifest to see analysis</div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Detection Position Heatmap</h2>
+            <div class="chart-container">
+                <canvas id="positionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div id="error" class="error"></div>
+    <div id="loading" class="loading">
+        <p>Analyzing log file...</p>
+    </div>
+
+    <script>
+        class BarcodeAnalyticsDashboard {
+            constructor() {
+                this.detections = [];
+                this.invalidDetections = [];
+                this.uniqueBarcodes = new Map();
+                this.trackData = new Map();
+                this.manifestData = null;
+                this.manifestPieces = new Map();
+                this.validationResults = {
+                    highPriorityCaptured: new Set(),
+                    highPriorityMissed: new Set(),
+                    lowPriorityCaptured: new Set(),
+                    extra: new Set(),
+                    dwellTimes: new Map(),
+                    relevantPieces: new Map()
+                };
+                this.sessionInfo = {
+                    startTime: null,
+                    endTime: null,
+                    searchSessions: [],
+                    allTimestamps: []
+                };
+                this.charts = {};
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                document.getElementById('fileInput').addEventListener('change', (event) => {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.analyzeLogFile(file);
+                    }
+                });
+
+                document.getElementById('manifestInput').addEventListener('change', (event) => {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.analyzeManifestFile(file);
+                    }
+                });
+
+                document.getElementById('analyzeButton').addEventListener('click', () => {
+                    const content = document.getElementById('logContent').value;
+                    if (content.trim()) {
+                        this.analyzeLogContent(content);
+                    } else {
+                        this.showError('Please paste log content in the text area first.');
+                    }
+                });
+
+                // Analysis buttons
+                document.getElementById('showHighPriorityMissedBtn').addEventListener('click', () => {
+                    this.displayManifestAnalysis('highPriorityMissed');
+                });
+                
+                document.getElementById('showHighPriorityCapturedBtn').addEventListener('click', () => {
+                    this.displayManifestAnalysis('highPriorityCaptured');
+                });
+                
+                document.getElementById('showLowPriorityCapturedBtn').addEventListener('click', () => {
+                    this.displayManifestAnalysis('lowPriorityCaptured');
+                });
+                
+                document.getElementById('showExtraBtn').addEventListener('click', () => {
+                    this.displayManifestAnalysis('extra');
+                });
+
+                // Export button
+                document.getElementById('exportButton').addEventListener('click', () => {
+                    this.exportShareableDashboard();
+                });
+            }
+
+            async analyzeManifestFile(file) {
+                this.showLoading(true);
+                this.hideError();
+
+                try {
+                    const content = await this.readFile(file);
+                    this.parseManifestContent(content);
+                    this.performValidation();
+                    this.updateDashboard();
+                } catch (error) {
+                    this.showError('Error analyzing manifest file: ' + error.message);
+                }
+
+                this.showLoading(false);
+            }
+
+            parseManifestContent(content) {
+                // Parse CSV content
+                const lines = content.split('\n').filter(line => line.trim());
+                if (lines.length === 0) {
+                    throw new Error('Manifest file appears to be empty');
+                }
+
+                // Parse header
+                const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+                
+                // Find relevant columns
+                const columnMap = {
+                    pieceNumber: this.findColumnIndex(headers, ['PIECE_NUMBER', 'PIECE NUMBER', 'PIECENUMBER', 'PRONUMBER']),
+                    pieces: this.findColumnIndex(headers, ['PIECES', 'PIECE_COUNT', 'QTY']),
+                    loadTimestamp: this.findColumnIndex(headers, ['LOAD_TSTAMP', 'LOAD TSTAMP', 'LOADTSTAMP', 'LOAD_TIME']),
+                    unloadTimestamp: this.findColumnIndex(headers, ['UNLOAD_TSTAMP', 'UNLOAD TSTAMP', 'UNLOADTSTAMP', 'UNLOAD_TIME']),
+                    weight: this.findColumnIndex(headers, ['PIECE_WEIGHT', 'PIECE WEIGHT', 'PRO_WEIGHT']),
+                    length: this.findColumnIndex(headers, ['PIECE_LENGTH', 'PIECE LENGTH', 'PRO_LENGTH']),
+                    width: this.findColumnIndex(headers, ['PIECE_WIDTH', 'PIECE WIDTH', 'PRO_WIDTH']),
+                    height: this.findColumnIndex(headers, ['PIECE_HEIGHT', 'PIECE HEIGHT', 'PRO_HEIGHT'])
+                };
+
+                if (columnMap.pieceNumber === -1) {
+                    throw new Error('Could not find piece number column in manifest. Expected columns: PIECE_NUMBER, PRONUMBER, etc.');
+                }
+
+                // Parse data rows
+                this.manifestPieces.clear();
+                const manifestItems = [];
+                
+                for (let i = 1; i < lines.length; i++) {
+                    const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+                    
+                    if (values.length < headers.length / 2) {
+                        continue; // Skip incomplete rows
+                    }
+                    
+                    const pieceNumber = values[columnMap.pieceNumber];
+                    if (!pieceNumber || pieceNumber.trim() === '') {
+                        continue;
+                    }
+                    
+                    const item = {
+                        pieceNumber,
+                        pieces: columnMap.pieces !== -1 ? parseInt(values[columnMap.pieces]) || 1 : 1,
+                        loadTimestamp: columnMap.loadTimestamp !== -1 ? this.parseTimestamp(values[columnMap.loadTimestamp]) : null,
+                        unloadTimestamp: columnMap.unloadTimestamp !== -1 ? this.parseTimestamp(values[columnMap.unloadTimestamp]) : null,
+                        weight: columnMap.weight !== -1 ? parseFloat(values[columnMap.weight]) || 0 : 0,
+                        dimensions: {
+                            length: columnMap.length !== -1 ? parseFloat(values[columnMap.length]) || 0 : 0,
+                            width: columnMap.width !== -1 ? parseFloat(values[columnMap.width]) || 0 : 0,
+                            height: columnMap.height !== -1 ? parseFloat(values[columnMap.height]) || 0 : 0
+                        }
+                    };
+                    
+                    this.manifestPieces.set(pieceNumber, item);
+                    manifestItems.push(item);
+                }
+
+                this.manifestData = {
+                    headers,
+                    items: manifestItems,
+                    totalPieces: manifestItems.length,
+                    timeRange: this.calculateManifestTimeRange(manifestItems)
+                };
+
+                console.log(`Parsed ${manifestItems.length} items from manifest`);
+            }
+
+            performValidation() {
+                if (!this.manifestData || this.detections.length === 0) {
+                    return;
+                }
+
+                // Reset validation results
+                this.validationResults = {
+                    highPriorityCaptured: new Set(),
+                    highPriorityMissed: new Set(),
+                    lowPriorityCaptured: new Set(),
+                    extra: new Set(),
+                    dwellTimes: new Map(),
+                    relevantPieces: new Map()
+                };
+
+                // Get unique detected piece numbers
+                const detectedPieces = new Set();
+                this.detections.forEach(detection => {
+                    if (detection.source !== 'tracking' && 
+                        detection.source !== 'completion' && 
+                        detection.data !== 'TASK_SUCCESS' &&
+                        !detection.data.startsWith('TRACK_') &&
+                        detection.data.length > 2) {
+                        detectedPieces.add(detection.data);
+                    }
+                });
+
+                const sessionStart = this.sessionInfo.startTime;
+                const sessionEnd = this.sessionInfo.endTime;
+
+                // Helper function to check if a piece is high priority
+                const isHighPriority = (manifestItem) => {
+                    const hasLoadTimestamp = manifestItem.loadTimestamp !== null;
+                    const hasUnloadTimestamp = manifestItem.unloadTimestamp !== null;
+                    
+                    // First check: Must have load time within session window (if we have session data)
+                    if (sessionStart && sessionEnd && hasLoadTimestamp) {
+                        if (manifestItem.loadTimestamp < sessionStart || manifestItem.loadTimestamp > sessionEnd) {
+                            return { isHigh: false, reason: 'Load time outside session window' };
+                        }
+                    }
+                    
+                    // Second check: Must meet dwell time or missing unload criteria
+                    if (hasLoadTimestamp && !hasUnloadTimestamp) {
+                        return { isHigh: true, reason: 'No unloading timestamp' };
+                    } else if (hasLoadTimestamp && hasUnloadTimestamp) {
+                        const dwellTime = Math.abs(manifestItem.unloadTimestamp - manifestItem.loadTimestamp);
+                        if (dwellTime > 180) { // 3 minutes = 180 seconds
+                            return { isHigh: true, reason: `Dwell time: ${this.formatDuration(dwellTime)}` };
+                        }
+                    }
+                    
+                    return { isHigh: false, reason: 'Does not meet high priority criteria' };
+                };
+
+                // For each detected piece, classify based on manifest data
+                detectedPieces.forEach(pieceNumber => {
+                    const manifestItem = this.manifestPieces.get(pieceNumber);
+                    
+                    if (!manifestItem) {
+                        // Not in manifest = extra detection
+                        this.validationResults.extra.add(pieceNumber);
+                        return;
+                    }
+                    
+                    // Check if this piece meets high priority criteria
+                    const priorityCheck = isHighPriority(manifestItem);
+                    
+                    if (priorityCheck.isHigh) {
+                        this.validationResults.highPriorityCaptured.add(pieceNumber);
+                        this.validationResults.relevantPieces.set(pieceNumber, {
+                            manifestItem,
+                            criteriaReason: priorityCheck.reason
+                        });
+                        
+                        // Calculate dwell time
+                        const dwellTime = this.calculateManifestDwellTime(manifestItem);
+                        if (dwellTime !== null) {
+                            this.validationResults.dwellTimes.set(pieceNumber, {
+                                dwellTime,
+                                captured: true,
+                                manifestItem,
+                                criteriaReason: priorityCheck.reason
+                            });
+                        }
+                    } else {
+                        this.validationResults.lowPriorityCaptured.add(pieceNumber);
+                    }
+                });
+
+                // Find high priority pieces that were missed (in manifest, meet criteria, but not detected)
+                this.manifestPieces.forEach((manifestItem, pieceNumber) => {
+                    // Skip if already processed as detected
+                    if (detectedPieces.has(pieceNumber)) {
+                        return;
+                    }
+                    
+                    // Check if this piece would have been high priority
+                    const priorityCheck = isHighPriority(manifestItem);
+                    
+                    if (priorityCheck.isHigh) {
+                        this.validationResults.highPriorityMissed.add(pieceNumber);
+                        this.validationResults.relevantPieces.set(pieceNumber, {
+                            manifestItem,
+                            criteriaReason: priorityCheck.reason
+                        });
+                        
+                        // Calculate dwell time
+                        const dwellTime = this.calculateManifestDwellTime(manifestItem);
+                        if (dwellTime !== null) {
+                            this.validationResults.dwellTimes.set(pieceNumber, {
+                                dwellTime,
+                                captured: false,
+                                manifestItem,
+                                criteriaReason: priorityCheck.reason
+                            });
+                        }
+                    }
+                });
+
+                // Update manifest data counts
+                this.manifestData.filteredTotalPieces = this.validationResults.relevantPieces.size; // High priority count
+                this.manifestData.sessionTotalPieces = this.manifestPieces.size; // All pieces in manifest
+
+                console.log('Session-aware validation results:', {
+                    sessionWindow: sessionStart && sessionEnd ? 
+                        `${new Date(sessionStart * 1000).toLocaleTimeString()} - ${new Date(sessionEnd * 1000).toLocaleTimeString()}` : 
+                        'No session data',
+                    totalManifestPieces: this.manifestPieces.size,
+                    highPriorityPieces: this.validationResults.relevantPieces.size,
+                    highPriorityCaptured: this.validationResults.highPriorityCaptured.size,
+                    highPriorityMissed: this.validationResults.highPriorityMissed.size,
+                    lowPriorityCaptured: this.validationResults.lowPriorityCaptured.size,
+                    extra: this.validationResults.extra.size
+                });
+            }
+
+            displayManifestAnalysis(type) {
+                const container = document.getElementById('manifestAnalysisList');
+                let items = [];
+                let title = '';
+                let colorClass = '';
+                
+                switch(type) {
+                    case 'highPriorityMissed':
+                        items = Array.from(this.validationResults.highPriorityMissed);
+                        title = 'High Priority Missed Pieces';
+                        colorClass = 'missed';
+                        break;
+                    case 'highPriorityCaptured':
+                        items = Array.from(this.validationResults.highPriorityCaptured);
+                        title = 'High Priority Captured Pieces';
+                        colorClass = 'captured';
+                        break;
+                    case 'lowPriorityCaptured':
+                        items = Array.from(this.validationResults.lowPriorityCaptured);
+                        title = 'Low Priority Captured Pieces';
+                        colorClass = 'low-priority';
+                        break;
+                    case 'extra':
+                        items = Array.from(this.validationResults.extra);
+                        title = 'Extra Detections (Not in Manifest)';
+                        colorClass = 'extra';
+                        break;
+                }
+                
+                if (items.length === 0) {
+                    container.innerHTML = `<div class="no-data">No ${type.replace(/([A-Z])/g, ' $1').toLowerCase()} pieces found</div>`;
+                    return;
+                }
+                
+                container.innerHTML = `
+                    <h4 style="color: #2c3e50; margin-bottom: 15px;">${title} (${items.length})</h4>
+                    ${items.map(pieceNumber => {
+                        const manifestItem = this.manifestPieces.get(pieceNumber);
+                        const dwellInfo = this.validationResults.dwellTimes.get(pieceNumber);
+                        const relevantInfo = this.validationResults.relevantPieces.get(pieceNumber);
+                        
+                        return `
+                            <div class="barcode-item">
+                                <div>
+                                    <div class="barcode-id">${this.escapeHtml(pieceNumber)}</div>
+                                    <div class="barcode-meta">
+                                        ${manifestItem ? `
+                                            <span>Weight: ${manifestItem.weight}lbs</span>
+                                            <span>Dimensions: ${manifestItem.dimensions.length}"×${manifestItem.dimensions.width}"×${manifestItem.dimensions.height}"</span>
+                                        ` : '<span>Not in manifest</span>'}
+                                        ${relevantInfo ? `<span>Reason: ${relevantInfo.criteriaReason}</span>` : ''}
+                                        ${dwellInfo ? `<span>Dwell: ${this.formatDuration(dwellInfo.dwellTime)}</span>` : ''}
+                                        ${type === 'lowPriorityCaptured' && manifestItem ? `
+                                            <span>Reason: ${manifestItem.loadTimestamp && this.sessionInfo.startTime && this.sessionInfo.endTime ? 
+                                                (manifestItem.loadTimestamp < this.sessionInfo.startTime || manifestItem.loadTimestamp > this.sessionInfo.endTime ? 
+                                                    'Load time outside session' : 'Dwell time ≤ 3 minutes') : 'Does not meet high priority criteria'}</span>
+                                            ${manifestItem.loadTimestamp && manifestItem.unloadTimestamp ? 
+                                                `<span>Dwell: ${this.formatDuration(Math.abs(manifestItem.unloadTimestamp - manifestItem.loadTimestamp))}</span>` : ''}
+                                        ` : ''}
+                                    </div>
+                                </div>
+                                <div class="barcode-count ${colorClass}">
+                                    ${type === 'highPriorityMissed' ? 'HIGH MISSED' : 
+                                      type === 'highPriorityCaptured' ? 'HIGH CAPTURED' :
+                                      type === 'lowPriorityCaptured' ? 'LOW CAPTURED' : 'EXTRA'}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                `;
+            }
+
+            updateManifestValidation() {
+                if (!this.manifestData) return;
+
+                const totalManifest = this.manifestData.totalPieces;
+                const highPriorityTotal = this.validationResults.relevantPieces.size;
+                const highPriorityCaptured = this.validationResults.highPriorityCaptured.size;
+                const highPriorityMissed = this.validationResults.highPriorityMissed.size;
+                const lowPriorityCaptured = this.validationResults.lowPriorityCaptured.size;
+                const extraCount = this.validationResults.extra.size;
+                
+                const highPriorityRate = highPriorityTotal > 0 ? Math.round((highPriorityCaptured / highPriorityTotal) * 100) : 0;
+                const overallCaptureRate = totalManifest > 0 ? Math.round(((highPriorityCaptured + lowPriorityCaptured) / totalManifest) * 100) : 0;
+
+                document.getElementById('totalManifestPieces').textContent = totalManifest;
+                document.getElementById('highPriorityPieces').textContent = highPriorityTotal;
+                document.getElementById('capturedHighPriority').textContent = highPriorityCaptured;
+                document.getElementById('missedHighPriority').textContent = highPriorityMissed;
+                document.getElementById('capturedLowPriority').textContent = lowPriorityCaptured;
+                document.getElementById('extraDetections').textContent = extraCount;
+                document.getElementById('highPriorityRate').textContent = highPriorityRate + '%';
+                document.getElementById('overallCaptureRate').textContent = overallCaptureRate + '%';
+
+                console.log('Fixed manifest validation summary:', {
+                    totalManifest,
+                    highPriorityTotal,
+                    highPriorityCaptured,
+                    highPriorityMissed,
+                    lowPriorityCaptured,
+                    extraCount,
+                    highPriorityRate: highPriorityRate + '%',
+                    overallCaptureRate: overallCaptureRate + '%'
+                });
+            }
+
+            createManifestBreakdownChart() {
+                const ctx = document.getElementById('manifestBreakdownChart').getContext('2d');
+                
+                if (this.charts.manifestBreakdown) this.charts.manifestBreakdown.destroy();
+
+                const data = {
+                    labels: ['High Priority Captured', 'High Priority Missed', 'Low Priority Captured', 'Extra Detections'],
+                    datasets: [{
+                        data: [
+                            this.validationResults.highPriorityCaptured.size,
+                            this.validationResults.highPriorityMissed.size,
+                            this.validationResults.lowPriorityCaptured.size,
+                            this.validationResults.extra.size
+                        ],
+                        backgroundColor: ['#27ae60', '#e74c3c', '#3498db', '#9b59b6'],
+                        borderWidth: 0
+                    }]
+                };
+
+                this.charts.manifestBreakdown = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = total > 0 ? Math.round((context.parsed / total) * 100) : 0;
+                                        return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            updateDashboard() {
+                if (this.detections.length === 0 && this.sessionInfo.searchSessions.length === 0) {
+                    this.showError('No barcode detections or search sessions found in the log file.');
+                    return;
+                }
+
+                this.updateStats();
+                this.updateSessionInfo();
+                this.updateBarcodeList();
+                this.createCharts();
+                
+                // Show manifest-related sections if we have manifest data
+                if (this.manifestData) {
+                    this.updateManifestValidation();
+                    this.updateTimeRangeValidation();
+                    document.getElementById('manifestCard').style.display = 'block';
+                    document.getElementById('manifestAnalysisCard').style.display = 'block';
+                    document.getElementById('manifestBreakdownCard').style.display = 'block';
+                }
+            }
+
+            createCharts() {
+                this.createMethodChart();
+                this.createTimelineChart();
+                this.createPositionChart();
+                
+                if (this.manifestData) {
+                    this.createManifestBreakdownChart();
+                }
+            }
+
+            findColumnIndex(headers, possibleNames) {
+                const sortedNames = possibleNames.sort((a, b) => b.length - a.length);
+                
+                for (const name of sortedNames) {
+                    let index = headers.findIndex(h => h.toUpperCase().trim() === name.toUpperCase().trim());
+                    if (index !== -1) {
+                        return index;
+                    }
+                }
+                
+                for (const name of sortedNames) {
+                    let index = headers.findIndex(h => {
+                        const headerUpper = h.toUpperCase().trim();
+                        const nameUpper = name.toUpperCase().trim();
+                        
+                        if (nameUpper === 'LOAD TSTAMP' && headerUpper.includes('UNLOAD')) {
+                            return false;
+                        }
+                        
+                        return headerUpper.includes(nameUpper);
+                    });
+                    
+                    if (index !== -1) {
+                        return index;
+                    }
+                }
+                
+                return -1;
+            }
+
+            parseTimestamp(timestampStr) {
+                if (!timestampStr || timestampStr.trim() === '') {
+                    return null;
+                }
+                
+                const cleanTimestamp = timestampStr.trim().replace(/"/g, '');
+                
+                if (/^\d+(\.\d+)?$/.test(cleanTimestamp)) {
+                    const timestamp = parseFloat(cleanTimestamp);
+                    if (timestamp > 1577836800 && timestamp < 1893456000) {
+                        return timestamp;
+                    }
+                }
+                
+                const date = new Date(cleanTimestamp);
+                if (!isNaN(date.getTime())) {
+                    return date.getTime() / 1000;
+                }
+                
+                return null;
+            }
+
+            calculateManifestTimeRange(items) {
+                const timestamps = [];
+                items.forEach(item => {
+                    if (item.loadTimestamp) timestamps.push(item.loadTimestamp);
+                    if (item.unloadTimestamp) timestamps.push(item.unloadTimestamp);
+                });
+                
+                if (timestamps.length === 0) return null;
+                
+                return {
+                    start: Math.min(...timestamps),
+                    end: Math.max(...timestamps)
+                };
+            }
+
+            calculateManifestDwellTime(manifestItem) {
+                if (manifestItem.loadTimestamp && manifestItem.unloadTimestamp) {
+                    return Math.abs(manifestItem.unloadTimestamp - manifestItem.loadTimestamp);
+                }
+                return null;
+            }
+
+            async analyzeLogFile(file) {
+                this.showLoading(true);
+                this.hideError();
+
+                try {
+                    const content = await this.readFile(file);
+                    this.analyzeLogContent(content);
+                } catch (error) {
+                    this.showError('Error analyzing log file: ' + error.message);
+                }
+
+                this.showLoading(false);
+            }
+
+            readFile(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (event) => resolve(event.target.result);
+                    reader.onerror = (error) => reject(error);
+                    reader.readAsText(file);
+                });
+            }
+
+            analyzeLogContent(content) {
+                this.showLoading(true);
+                this.hideError();
+
+                try {
+                    this.parseLogContent(content);
+                    this.performValidation();
+                    this.updateDashboard();
+                } catch (error) {
+                    this.showError('Error analyzing log content: ' + error.message);
+                }
+
+                this.showLoading(false);
+            }
+
+            parseLogContent(content) {
+                this.detections = [];
+                this.invalidDetections = [];
+                this.uniqueBarcodes.clear();
+                this.trackData = new Map();
+                this.positionData = new Map(); // NEW: Store position data for heatmap
+                this.sessionInfo = {
+                    startTime: null,
+                    endTime: null,
+                    searchSessions: [],
+                    allTimestamps: []
+                };
+
+                const lines = content.split('\n');
+                
+                const barcodePatterns = [
+                    {
+                        pattern: /New barcode detected by libdmtx: ([^\s\(]+)(?:\s*\(search_active:\s*True\))?/,
+                        source: 'dmtx'
+                    },
+                    {
+                        pattern: /New barcode detected by zbar: ([^\s\(]+)(?:\s*\(search_active:\s*True\))?/,
+                        source: 'zbar'
+                    },
+                    {
+                        pattern: /Barcode search successful: ([^\s\(]+)/,
+                        source: 'search_result'
+                    },
+                    {
+                        pattern: /Valid code detected from dmtx: "([^"]+)" - Valid .* \(SUCCESS TRIGGER\)/,
+                        source: 'dmtx'
+                    },
+                    {
+                        pattern: /Valid code detected from zbar: "([^"]+)" - Valid .* \(SUCCESS TRIGGER\)/,
+                        source: 'zbar'
+                    }
+                ];
+
+                // Track positions for heatmap
+                const trackPositions = new Map();
+
+                lines.forEach((line, index) => {
+                    const timestampMatch = line.match(/\[(\d+\.\d+)\]/);
+                    const timestamp = timestampMatch ? parseFloat(timestampMatch[1]) : null;
+                    
+                    if (timestamp) {
+                        this.sessionInfo.allTimestamps.push(timestamp);
+                        
+                        if (!this.sessionInfo.startTime || timestamp < this.sessionInfo.startTime) {
+                            this.sessionInfo.startTime = timestamp;
+                        }
+                        if (!this.sessionInfo.endTime || timestamp > this.sessionInfo.endTime) {
+                            this.sessionInfo.endTime = timestamp;
+                        }
+                    }
+
+                    // Extract track positions
+                    const posMatch = line.match(/Track (\d+) \(orig: \d+\): pos\(([0-9.]+),([0-9.]+)\)/);
+                    if (posMatch) {
+                        const trackId = posMatch[1];
+                        const x = parseFloat(posMatch[2]);
+                        const y = parseFloat(posMatch[3]);
+                        trackPositions.set(trackId, { x, y, timestamp });
+                    }
+
+                    barcodePatterns.forEach(patternConfig => {
+                        const match = line.match(patternConfig.pattern);
+                        if (match) {
+                            const rawData = match[1].trim();
+                            let source = patternConfig.source;
+                            
+                            if (line.includes('libdmtx')) {
+                                source = 'dmtx';
+                            } else if (line.includes('zbar')) {
+                                source = 'zbar';
+                            }
+                            
+                            const cleanedData = this.cleanBarcodeData(rawData);
+                            const barcodes = this.splitBarcodeData(cleanedData);
+                            
+                            barcodes.forEach(data => {
+                                if (data && data.trim()) {
+                                    const detection = {
+                                        timestamp,
+                                        source,
+                                        data: data.trim(),
+                                        line: index + 1,
+                                        rawLine: line.trim()
+                                    };
+
+                                    this.detections.push(detection);
+
+                                    if (!this.uniqueBarcodes.has(data)) {
+                                        this.uniqueBarcodes.set(data, {
+                                            data,
+                                            sources: new Set(),
+                                            count: 0,
+                                            firstSeen: timestamp
+                                        });
+                                    }
+                                    const barcode = this.uniqueBarcodes.get(data);
+                                    barcode.sources.add(source);
+                                    barcode.count++;
+                                }
+                            });
+                        }
+                    });
+                });
+
+                // Associate positions with detected barcodes
+                this.detections.forEach(detection => {
+                    // Find the closest track position in time
+                    let closestTrack = null;
+                    let minTimeDiff = Infinity;
+                    
+                    trackPositions.forEach((posData, trackId) => {
+                        const timeDiff = Math.abs(posData.timestamp - detection.timestamp);
+                        if (timeDiff < minTimeDiff && timeDiff < 30) { // Within 30 seconds
+                            minTimeDiff = timeDiff;
+                            closestTrack = { trackId, ...posData };
+                        }
+                    });
+                    
+                    if (closestTrack) {
+                        if (!this.positionData.has(detection.data)) {
+                            this.positionData.set(detection.data, []);
+                        }
+                        this.positionData.get(detection.data).push({
+                            x: closestTrack.x,
+                            y: closestTrack.y,
+                            timestamp: detection.timestamp,
+                            source: detection.source,
+                            trackId: closestTrack.trackId
+                        });
+                    }
+                });
+            }
+
+            cleanBarcodeData(rawData) {
+                return rawData
+                    .replace(/\s*\(search_active:\s*(True|False)\)\s*/gi, '')
+                    .replace(/\s*\(.*?\)\s*$/, '')
+                    .trim();
+            }
+
+            splitBarcodeData(data) {
+                if (data.includes(',')) {
+                    const parts = data.split(',').map(part => part.trim());
+                    const uniqueParts = [...new Set(parts)];
+                    return uniqueParts;
+                }
+                return [data];
+            }
+
+            updateStats() {
+                const dmtxCount = this.detections.filter(d => d.source === 'dmtx').length;
+                const zbarCount = this.detections.filter(d => d.source === 'zbar').length;
+                const invalidCount = this.invalidDetections.length;
+                
+                const uniqueDmtxBarcodes = new Set();
+                const uniqueZbarBarcodes = new Set();
+                
+                this.uniqueBarcodes.forEach((barcode, barcodeData) => {
+                    if (barcodeData.length > 2 && !barcodeData.startsWith('TRACK_') && barcodeData !== 'TASK_SUCCESS') {
+                        if (barcode.sources.has('dmtx')) {
+                            uniqueDmtxBarcodes.add(barcodeData);
+                        }
+                        if (barcode.sources.has('zbar')) {
+                            uniqueZbarBarcodes.add(barcodeData);
+                        }
+                    }
+                });
+                
+                let successRate = 0;
+                if (this.manifestData && this.validationResults.highPriorityCaptured.size > 0) {
+                    const totalHighPriorityPieces = this.manifestData.filteredTotalPieces || 0;
+                    if (totalHighPriorityPieces > 0) {
+                        successRate = Math.round((this.validationResults.highPriorityCaptured.size / totalHighPriorityPieces) * 100);
+                    }
+                } else {
+                    const successfulSearches = this.sessionInfo.searchSessions.filter(s => s.type === 'search_success').length;
+                    const failedSearches = this.sessionInfo.searchSessions.filter(s => s.type === 'search_failed').length;
+                    const totalSearchAttempts = successfulSearches + failedSearches;
+                    if (totalSearchAttempts > 0) {
+                        successRate = Math.round((successfulSearches / totalSearchAttempts) * 100);
+                    }
+                }
+
+                document.getElementById('totalDetections').textContent = this.detections.filter(d => 
+                    d.source !== 'completion' && 
+                    d.data !== 'TASK_SUCCESS' && 
+                    !d.data.startsWith('TRACK_')
+                ).length;
+                document.getElementById('dmtxDetections').textContent = dmtxCount;
+                document.getElementById('zbarDetections').textContent = zbarCount;
+                document.getElementById('uniqueBarcodes').textContent = uniqueDmtxBarcodes.size + uniqueZbarBarcodes.size;
+                document.getElementById('uniqueDmtx').textContent = uniqueDmtxBarcodes.size;
+                document.getElementById('uniqueZbar').textContent = uniqueZbarBarcodes.size;
+                document.getElementById('invalidDetections').textContent = invalidCount;
+                document.getElementById('successRate').textContent = successRate + '%';
+            }
+
+            updateSessionInfo() {
+                const startTime = this.sessionInfo.startTime;
+                const endTime = this.sessionInfo.endTime;
+                const duration = startTime && endTime ? endTime - startTime : 0;
+                const detectionRate = duration > 0 ? (this.detections.length / duration * 60).toFixed(1) : '0';
+
+                if (startTime && endTime) {
+                    document.getElementById('sessionDetails').style.display = 'block';
+                    document.getElementById('sessionStart').textContent = new Date(startTime * 1000).toLocaleTimeString();
+                    document.getElementById('sessionEnd').textContent = new Date(endTime * 1000).toLocaleTimeString();
+                    document.getElementById('sessionDuration').textContent = this.formatDuration(duration);
+                    document.getElementById('detectionRate').textContent = detectionRate;
+
+                    const sessionDate = new Date(startTime * 1000);
+                    document.getElementById('sessionInfo').innerHTML = 
+                        `Session analyzed: ${sessionDate.toLocaleDateString()} ${sessionDate.toLocaleTimeString()} - ${new Date(endTime * 1000).toLocaleTimeString()}`;
+                }
+            }
+
+            updateBarcodeList() {
+                const container = document.getElementById('barcodeList');
+                
+                if (this.uniqueBarcodes.size === 0) {
+                    container.innerHTML = '<div class="no-data">No unique barcodes found</div>';
+                    return;
+                }
+
+                const barcodes = Array.from(this.uniqueBarcodes.values())
+                    .sort((a, b) => b.count - a.count);
+
+                container.innerHTML = barcodes.map(barcode => `
+                    <div class="barcode-item">
+                        <div>
+                            <div class="barcode-id">${this.escapeHtml(barcode.data)}</div>
+                            <div class="barcode-meta">
+                                <span>Sources: ${Array.from(barcode.sources).map(source => 
+                                    `<span class="source-tag source-${source}">${source}</span>`
+                                ).join(' ')}</span>
+                                <span>First seen: ${barcode.firstSeen ? new Date(barcode.firstSeen * 1000).toLocaleTimeString() : 'Unknown'}</span>
+                            </div>
+                        </div>
+                        <div class="barcode-count">${barcode.count}</div>
+                    </div>
+                `).join('');
+            }
+
+            updateTimeRangeValidation() {
+                const container = document.getElementById('timeRangeInfo');
+                
+                if (!this.manifestData || !this.manifestData.timeRange) {
+                    container.innerHTML = '<p>No timestamp data available in manifest</p>';
+                    return;
+                }
+
+                const manifestStart = this.manifestData.timeRange.start;
+                const manifestEnd = this.manifestData.timeRange.end;
+                const sessionStart = this.sessionInfo.startTime;
+                const sessionEnd = this.sessionInfo.endTime;
+
+                let analysis = '<div class="time-range-analysis">';
+                
+                if (sessionStart && sessionEnd) {
+                    const overlap = this.calculateTimeOverlap(
+                        sessionStart, sessionEnd,
+                        manifestStart, manifestEnd
+                    );
+                    
+                    const sessionDuration = sessionEnd - sessionStart;
+                    const manifestDuration = manifestEnd - manifestStart;
+                    
+                    analysis += `
+                        <p><strong>Manifest Time Range:</strong> ${new Date(manifestStart * 1000).toLocaleString()} - ${new Date(manifestEnd * 1000).toLocaleString()}</p>
+                        <p><strong>Detection Session:</strong> ${new Date(sessionStart * 1000).toLocaleString()} - ${new Date(sessionEnd * 1000).toLocaleString()}</p>
+                        <p><strong>Time Overlap:</strong> ${overlap.percentage.toFixed(1)}% (${this.formatDuration(overlap.duration)})</p>
+                    `;
+                    
+                    if (overlap.percentage < 50) {
+                        analysis += '<p style="color: #e74c3c;"><strong>Warning:</strong> Low time overlap detected.</p>';
+                    }
+                } else {
+                    analysis += `
+                        <p><strong>Manifest Time Range:</strong> ${new Date(manifestStart * 1000).toLocaleString()} - ${new Date(manifestEnd * 1000).toLocaleString()}</p>
+                        <p style="color: #f39c12;"><strong>Note:</strong> Detection log lacks reliable timestamp data for comparison.</p>
+                    `;
+                }
+                
+                analysis += '</div>';
+                container.innerHTML = analysis;
+            }
+
+            calculateTimeOverlap(sessionStart, sessionEnd, manifestStart, manifestEnd) {
+                const overlapStart = Math.max(sessionStart, manifestStart);
+                const overlapEnd = Math.min(sessionEnd, manifestEnd);
+                
+                if (overlapStart >= overlapEnd) {
+                    return { duration: 0, percentage: 0 };
+                }
+                
+                const overlapDuration = overlapEnd - overlapStart;
+                const manifestDuration = manifestEnd - manifestStart;
+                const percentage = manifestDuration > 0 ? (overlapDuration / manifestDuration) * 100 : 0;
+                
+                return { duration: overlapDuration, percentage };
+            }
+
+            createMethodChart() {
+                const ctx = document.getElementById('methodChart').getContext('2d');
+                
+                if (this.charts.method) this.charts.method.destroy();
+
+                const dmtxCount = this.detections.filter(d => d.source === 'dmtx').length;
+                const zbarCount = this.detections.filter(d => d.source === 'zbar').length;
+                
+                this.charts.method = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['DMTX', 'ZBar'],
+                        datasets: [{
+                            data: [dmtxCount, zbarCount],
+                            backgroundColor: ['#e74c3c', '#f39c12'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+            }
+
+            createTimelineChart() {
+                const ctx = document.getElementById('timelineChart').getContext('2d');
+                
+                if (this.charts.timeline) this.charts.timeline.destroy();
+
+                const detectionsByMinute = {};
+                
+                this.detections.forEach(detection => {
+                    if (detection.timestamp && detection.source !== 'tracking') {
+                        const roundedTimestamp = Math.floor(detection.timestamp / 60) * 60;
+                        if (!detectionsByMinute[roundedTimestamp]) detectionsByMinute[roundedTimestamp] = 0;
+                        detectionsByMinute[roundedTimestamp]++;
+                    }
+                });
+
+                const sortedTimestamps = Object.keys(detectionsByMinute)
+                    .map(Number)
+                    .sort((a, b) => a - b);
+
+                const labels = [];
+                const data = [];
+
+                sortedTimestamps.forEach(timestamp => {
+                    const date = new Date(timestamp * 1000);
+                    labels.push(date.toLocaleTimeString([], { 
+                        hour: 'numeric', 
+                        minute: '2-digit',
+                        hour12: true 
+                    }));
+                    data.push(detectionsByMinute[timestamp]);
+                });
+
+                if (labels.length === 0) {
+                    labels.push('No Data');
+                    data.push(0);
+                }
+
+                this.charts.timeline = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Detections per Minute',
+                            data,
+                            borderColor: '#27ae60',
+                            backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointBackgroundColor: '#27ae60',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Number of Detections'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Time of Day'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            createPositionChart() {
+                const ctx = document.getElementById('positionChart').getContext('2d');
+                
+                if (this.charts.position) this.charts.position.destroy();
+
+                // Collect all position data
+                const positions = [];
+                this.positionData.forEach((posArray, barcode) => {
+                    posArray.forEach(pos => {
+                        positions.push({
+                            x: pos.x,
+                            y: 1 - pos.y, // Invert Y for chart display
+                            barcode: barcode,
+                            source: pos.source,
+                            trackId: pos.trackId
+                        });
+                    });
+                });
+
+                if (positions.length === 0) {
+                    // Show empty chart with message
+                    this.charts.position = new Chart(ctx, {
+                        type: 'scatter',
+                        data: {
+                            datasets: [{
+                                label: 'No position data available',
+                                data: [],
+                                backgroundColor: '#3498db'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'No barcode position data found in logs'
+                                }
+                            }
+                        }
+                    });
+                    return;
+                }
+
+                // Group positions by source
+                const dmtxPositions = positions.filter(p => p.source === 'dmtx');
+                const zbarPositions = positions.filter(p => p.source === 'zbar');
+
+                this.charts.position = new Chart(ctx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [
+                            {
+                                label: 'DMTX Detections',
+                                data: dmtxPositions.map(p => ({ x: p.x, y: p.y })),
+                                backgroundColor: '#e74c3c',
+                                borderColor: '#c0392b',
+                                pointRadius: 8,
+                                pointHoverRadius: 12
+                            },
+                            {
+                                label: 'ZBar Detections',
+                                data: zbarPositions.map(p => ({ x: p.x, y: p.y })),
+                                backgroundColor: '#f39c12',
+                                borderColor: '#e67e22',
+                                pointRadius: 8,
+                                pointHoverRadius: 12
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                position: 'bottom',
+                                min: 0,
+                                max: 1,
+                                title: {
+                                    display: true,
+                                    text: 'X Position (normalized)'
+                                }
+                            },
+                            y: {
+                                min: 0,
+                                max: 1,
+                                title: {
+                                    display: true,
+                                    text: 'Y Position (normalized)'
+                                }
+                            }
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Barcode Detection Positions'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    title: function(context) {
+                                        const pointIndex = context[0].dataIndex;
+                                        const dataset = context[0].dataset.label;
+                                        const sourcePositions = dataset.includes('DMTX') ? dmtxPositions : zbarPositions;
+                                        return `${sourcePositions[pointIndex].barcode} (Track ${sourcePositions[pointIndex].trackId})`;
+                                    },
+                                    label: function(context) {
+                                        return `Position: (${context.parsed.x.toFixed(3)}, ${(1-context.parsed.y).toFixed(3)})`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            formatDuration(seconds) {
+                if (seconds < 60) {
+                    return `${seconds.toFixed(1)}s`;
+                } else if (seconds < 3600) {
+                    const minutes = Math.floor(seconds / 60);
+                    const remainingSeconds = Math.floor(seconds % 60);
+                    return `${minutes}m ${remainingSeconds}s`;
+                } else {
+                    const hours = Math.floor(seconds / 3600);
+                    const minutes = Math.floor((seconds % 3600) / 60);
+                    return `${hours}h ${minutes}m`;
+                }
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            showLoading(show) {
+                document.getElementById('loading').style.display = show ? 'block' : 'none';
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('error');
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+            }
+
+            hideError() {
+                document.getElementById('error').style.display = 'none';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new BarcodeAnalyticsDashboard();
+        });
+    </script>
+</body>
+</html>
