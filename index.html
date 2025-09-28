@@ -316,7 +316,6 @@
             background: #3498db;
         }
 
-        /* Expanded stats grid for more categories */
         .manifest-stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -368,17 +367,6 @@
                     <textarea id="logContent" class="paste-area" placeholder="Paste your barcode detection log content here..."></textarea>
                     <button id="analyzeButton" class="analyze-btn" style="margin-top: 10px;">Analyze Pasted Content</button>
                 </div>
-                
-                <div style="text-align: center; width: 100%; margin-top: 20px;">
-                    <button id="exportButton" class="analyze-btn" style="background: #9b59b6; display: none;">Export Shareable Dashboard</button>
-                    <p style="font-size: 0.9em; color: #666; margin-top: 10px; display: none;" id="exportInfo">
-                        Creates a self-contained HTML file with your analysis results embedded
-                    </p>
-                </div>
-                
-                <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; font-size: 0.9em; color: #666;">
-                    <strong>Expected Manifest Format:</strong> CSV with columns like PRONUMBER, PIECES, PIECE_NUMBER, LOAD_TSTAMP, etc.
-                </div>
             </div>
         </div>
         
@@ -399,23 +387,23 @@
                 </div>
                 <div class="stat-item" style="border-left-color: #e74c3c;">
                     <div class="stat-number" id="dmtxDetections">0</div>
-                    <div class="stat-label">DMTX Detections</div>
+                    <div class="stat-label">DataMatrix Detections</div>
                 </div>
                 <div class="stat-item" style="border-left-color: #f39c12;">
                     <div class="stat-number" id="zbarDetections">0</div>
-                    <div class="stat-label">ZBar Detections</div>
+                    <div class="stat-label">Barcode Detections</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-number" id="uniqueBarcodes">0</div>
-                    <div class="stat-label">Total Unique Barcodes</div>
+                    <div class="stat-label">Total Unique Detections</div>
                 </div>
                 <div class="stat-item" style="border-left-color: #e74c3c;">
                     <div class="stat-number" id="uniqueDmtx">0</div>
-                    <div class="stat-label">Unique DMTX</div>
+                    <div class="stat-label">Unique DataMatrix</div>
                 </div>
                 <div class="stat-item" style="border-left-color: #f39c12;">
                     <div class="stat-number" id="uniqueZbar">0</div>
-                    <div class="stat-label">Unique ZBar</div>
+                    <div class="stat-label">Unique Barcodes</div>
                 </div>
                 <div class="stat-item" style="border-left-color: #e67e22;">
                     <div class="stat-number" id="invalidDetections">0</div>
@@ -451,7 +439,7 @@
         </div>
         
         <div class="card manifest-validation" id="manifestCard" style="display: none;">
-            <h2>Manifest Validation - Complete Analysis</h2>
+            <h2>Manifest Validation - Two-Step Filtering Analysis</h2>
             <div class="manifest-stats-grid">
                 <div class="stat-item" style="border-left-color: #2c3e50;">
                     <div class="stat-number" id="totalManifestPieces">0</div>
@@ -488,13 +476,16 @@
             </div>
             
             <div class="validation-details" style="margin-top: 20px;">
-                <h4 style="color: #2c3e50; margin-bottom: 15px;">Priority Classification</h4>
+                <h4 style="color: #2c3e50; margin-bottom: 15px;">Priority Classification (Two-Step Filtering)</h4>
                 <div class="time-range-info" style="background: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #27ae60; margin-bottom: 15px;">
-                    <p><strong>High Priority:</strong> Packages loaded during detection session AND (dwell time > 3 minutes OR missing unloading timestamp)</p>
+                    <p><strong>Step 1:</strong> Filter to packages loaded between 3:43:47 AM - 9:41:28 AM</p>
+                    <p><strong>Step 2:</strong> From that subset, identify packages with either:</p>
+                    <p style="margin-left: 20px;">• Dwell time > 3 minutes, OR</p>
+                    <p style="margin-left: 20px;">• Missing unloading timestamp</p>
                     <p><strong>Low Priority:</strong> All other detected packages in manifest</p>
                     <p><strong>Extra Detections:</strong> Packages detected but not found in manifest</p>
                     <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
-                        <em>High priority classification requires load time to fall within the detection session window</em>
+                        <em>High priority classification uses specific time range (3:43:47 AM - 9:41:28 AM) as primary filter</em>
                     </p>
                 </div>
                 <h4 style="color: #2c3e50; margin-bottom: 15px;">Time Range Validation</h4>
@@ -625,11 +616,6 @@
                 document.getElementById('showExtraBtn').addEventListener('click', () => {
                     this.displayManifestAnalysis('extra');
                 });
-
-                // Export button
-                document.getElementById('exportButton').addEventListener('click', () => {
-                    this.exportShareableDashboard();
-                });
             }
 
             async analyzeManifestFile(file) {
@@ -649,16 +635,13 @@
             }
 
             parseManifestContent(content) {
-                // Parse CSV content
                 const lines = content.split('\n').filter(line => line.trim());
                 if (lines.length === 0) {
                     throw new Error('Manifest file appears to be empty');
                 }
 
-                // Parse header
                 const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
                 
-                // Find relevant columns
                 const columnMap = {
                     pieceNumber: this.findColumnIndex(headers, ['PIECE_NUMBER', 'PIECE NUMBER', 'PIECENUMBER', 'PRONUMBER']),
                     pieces: this.findColumnIndex(headers, ['PIECES', 'PIECE_COUNT', 'QTY']),
@@ -674,7 +657,6 @@
                     throw new Error('Could not find piece number column in manifest. Expected columns: PIECE_NUMBER, PRONUMBER, etc.');
                 }
 
-                // Parse data rows
                 this.manifestPieces.clear();
                 const manifestItems = [];
                 
@@ -682,7 +664,7 @@
                     const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
                     
                     if (values.length < headers.length / 2) {
-                        continue; // Skip incomplete rows
+                        continue;
                     }
                     
                     const pieceNumber = values[columnMap.pieceNumber];
@@ -722,7 +704,6 @@
                     return;
                 }
 
-                // Reset validation results
                 this.validationResults = {
                     highPriorityCaptured: new Set(),
                     highPriorityMissed: new Set(),
@@ -732,7 +713,6 @@
                     relevantPieces: new Map()
                 };
 
-                // Get unique detected piece numbers
                 const detectedPieces = new Set();
                 this.detections.forEach(detection => {
                     if (detection.source !== 'tracking' && 
@@ -744,32 +724,71 @@
                     }
                 });
 
-                const sessionStart = this.sessionInfo.startTime;
-                const sessionEnd = this.sessionInfo.endTime;
+                // Define specific time range for two-step filtering (3:43:47 AM - 9:41:28 AM)
+                const targetTimeStart = 3 * 3600 + 43 * 60 + 47; // 13427 seconds
+                const targetTimeEnd = 9 * 3600 + 41 * 60 + 28;   // 34888 seconds
 
-                // Helper function to check if a piece is high priority
+                const getTimeOfDay = (timestamp) => {
+                    if (!timestamp) return null;
+                    const date = new Date(timestamp * 1000);
+                    return date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+                };
+
+                // Debug to see what's happening
+                let piecesInTimeRange = 0;
+                let noUnloadInRange = 0;
+                let dwellTimeInRange = 0;
+                
+                this.manifestPieces.forEach((manifestItem, pieceNumber) => {
+                    if (manifestItem.loadTimestamp) {
+                        const loadTimeOfDay = getTimeOfDay(manifestItem.loadTimestamp);
+                        if (loadTimeOfDay >= targetTimeStart && loadTimeOfDay <= targetTimeEnd) {
+                            piecesInTimeRange++;
+                            if (!manifestItem.unloadTimestamp) {
+                                noUnloadInRange++;
+                            } else {
+                                const dwellTime = Math.abs(manifestItem.unloadTimestamp - manifestItem.loadTimestamp);
+                                if (dwellTime > 180) {
+                                    dwellTimeInRange++;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                console.log('Two-step filtering DEBUG:', {
+                    targetTimeStart: targetTimeStart + ' seconds (3:43:47 AM)',
+                    targetTimeEnd: targetTimeEnd + ' seconds (9:41:28 AM)', 
+                    totalManifestPieces: this.manifestPieces.size,
+                    piecesInTimeRange: piecesInTimeRange,
+                    noUnloadInTimeRange: noUnloadInRange,
+                    dwellTimeInTimeRange: dwellTimeInRange,
+                    expectedTotal: noUnloadInRange + dwellTimeInRange
+                });
+
                 const isHighPriority = (manifestItem) => {
                     const hasLoadTimestamp = manifestItem.loadTimestamp !== null;
                     const hasUnloadTimestamp = manifestItem.unloadTimestamp !== null;
                     
-                    // First check: Must have load time within session window (if we have session data)
-                    if (sessionStart && sessionEnd && hasLoadTimestamp) {
-                        if (manifestItem.loadTimestamp < sessionStart || manifestItem.loadTimestamp > sessionEnd) {
-                            return { isHigh: false, reason: 'Load time outside session window' };
-                        }
+                    if (!hasLoadTimestamp) {
+                        return { isHigh: false, reason: 'No load timestamp' };
                     }
                     
-                    // Second check: Must meet dwell time or missing unload criteria
-                    if (hasLoadTimestamp && !hasUnloadTimestamp) {
-                        return { isHigh: true, reason: 'No unloading timestamp' };
+                    const loadTimeOfDay = getTimeOfDay(manifestItem.loadTimestamp);
+                    if (loadTimeOfDay < targetTimeStart || loadTimeOfDay > targetTimeEnd) {
+                        return { isHigh: false, reason: 'Load time outside target range (3:43:47 AM - 9:41:28 AM)' };
+                    }
+                    
+                    if (!hasUnloadTimestamp) {
+                        return { isHigh: true, reason: 'No unloading timestamp (within time range)' };
                     } else if (hasLoadTimestamp && hasUnloadTimestamp) {
                         const dwellTime = Math.abs(manifestItem.unloadTimestamp - manifestItem.loadTimestamp);
-                        if (dwellTime > 180) { // 3 minutes = 180 seconds
-                            return { isHigh: true, reason: `Dwell time: ${this.formatDuration(dwellTime)}` };
+                        if (dwellTime > 180) {
+                            return { isHigh: true, reason: `Dwell time: ${this.formatDuration(dwellTime)} (within time range)` };
                         }
                     }
                     
-                    return { isHigh: false, reason: 'Does not meet high priority criteria' };
+                    return { isHigh: false, reason: 'Does not meet dwell time criteria (within time range)' };
                 };
 
                 // For each detected piece, classify based on manifest data
@@ -777,12 +796,10 @@
                     const manifestItem = this.manifestPieces.get(pieceNumber);
                     
                     if (!manifestItem) {
-                        // Not in manifest = extra detection
                         this.validationResults.extra.add(pieceNumber);
                         return;
                     }
                     
-                    // Check if this piece meets high priority criteria
                     const priorityCheck = isHighPriority(manifestItem);
                     
                     if (priorityCheck.isHigh) {
@@ -792,7 +809,6 @@
                             criteriaReason: priorityCheck.reason
                         });
                         
-                        // Calculate dwell time
                         const dwellTime = this.calculateManifestDwellTime(manifestItem);
                         if (dwellTime !== null) {
                             this.validationResults.dwellTimes.set(pieceNumber, {
@@ -807,14 +823,12 @@
                     }
                 });
 
-                // Find high priority pieces that were missed (in manifest, meet criteria, but not detected)
+                // Find high priority pieces that were missed
                 this.manifestPieces.forEach((manifestItem, pieceNumber) => {
-                    // Skip if already processed as detected
                     if (detectedPieces.has(pieceNumber)) {
                         return;
                     }
                     
-                    // Check if this piece would have been high priority
                     const priorityCheck = isHighPriority(manifestItem);
                     
                     if (priorityCheck.isHigh) {
@@ -824,7 +838,6 @@
                             criteriaReason: priorityCheck.reason
                         });
                         
-                        // Calculate dwell time
                         const dwellTime = this.calculateManifestDwellTime(manifestItem);
                         if (dwellTime !== null) {
                             this.validationResults.dwellTimes.set(pieceNumber, {
@@ -837,14 +850,11 @@
                     }
                 });
 
-                // Update manifest data counts
-                this.manifestData.filteredTotalPieces = this.validationResults.relevantPieces.size; // High priority count
-                this.manifestData.sessionTotalPieces = this.manifestPieces.size; // All pieces in manifest
+                this.manifestData.filteredTotalPieces = this.validationResults.relevantPieces.size;
+                this.manifestData.sessionTotalPieces = this.manifestPieces.size;
 
-                console.log('Session-aware validation results:', {
-                    sessionWindow: sessionStart && sessionEnd ? 
-                        `${new Date(sessionStart * 1000).toLocaleTimeString()} - ${new Date(sessionEnd * 1000).toLocaleTimeString()}` : 
-                        'No session data',
+                console.log('Two-step filtering validation results:', {
+                    timeRange: '3:43:47 AM - 9:41:28 AM',
                     totalManifestPieces: this.manifestPieces.size,
                     highPriorityPieces: this.validationResults.relevantPieces.size,
                     highPriorityCaptured: this.validationResults.highPriorityCaptured.size,
@@ -906,13 +916,6 @@
                                         ` : '<span>Not in manifest</span>'}
                                         ${relevantInfo ? `<span>Reason: ${relevantInfo.criteriaReason}</span>` : ''}
                                         ${dwellInfo ? `<span>Dwell: ${this.formatDuration(dwellInfo.dwellTime)}</span>` : ''}
-                                        ${type === 'lowPriorityCaptured' && manifestItem ? `
-                                            <span>Reason: ${manifestItem.loadTimestamp && this.sessionInfo.startTime && this.sessionInfo.endTime ? 
-                                                (manifestItem.loadTimestamp < this.sessionInfo.startTime || manifestItem.loadTimestamp > this.sessionInfo.endTime ? 
-                                                    'Load time outside session' : 'Dwell time ≤ 3 minutes') : 'Does not meet high priority criteria'}</span>
-                                            ${manifestItem.loadTimestamp && manifestItem.unloadTimestamp ? 
-                                                `<span>Dwell: ${this.formatDuration(Math.abs(manifestItem.unloadTimestamp - manifestItem.loadTimestamp))}</span>` : ''}
-                                        ` : ''}
                                     </div>
                                 </div>
                                 <div class="barcode-count ${colorClass}">
@@ -947,17 +950,6 @@
                 document.getElementById('extraDetections').textContent = extraCount;
                 document.getElementById('highPriorityRate').textContent = highPriorityRate + '%';
                 document.getElementById('overallCaptureRate').textContent = overallCaptureRate + '%';
-
-                console.log('Fixed manifest validation summary:', {
-                    totalManifest,
-                    highPriorityTotal,
-                    highPriorityCaptured,
-                    highPriorityMissed,
-                    lowPriorityCaptured,
-                    extraCount,
-                    highPriorityRate: highPriorityRate + '%',
-                    overallCaptureRate: overallCaptureRate + '%'
-                });
             }
 
             createManifestBreakdownChart() {
@@ -1014,7 +1006,6 @@
                 this.updateBarcodeList();
                 this.createCharts();
                 
-                // Show manifest-related sections if we have manifest data
                 if (this.manifestData) {
                     this.updateManifestValidation();
                     this.updateTimeRangeValidation();
@@ -1151,7 +1142,7 @@
                 this.invalidDetections = [];
                 this.uniqueBarcodes.clear();
                 this.trackData = new Map();
-                this.positionData = new Map(); // NEW: Store position data for heatmap
+                this.positionData = new Map();
                 this.sessionInfo = {
                     startTime: null,
                     endTime: null,
@@ -1181,10 +1172,13 @@
                     {
                         pattern: /Valid code detected from zbar: "([^"]+)" - Valid .* \(SUCCESS TRIGGER\)/,
                         source: 'zbar'
+                    },
+                    {
+                        pattern: /Valid code detected from zbar_barcode: "([^"]+)" - Valid .* \(LOGGED ONLY\)/,
+                        source: 'zbar'
                     }
                 ];
 
-                // Track positions for heatmap
                 const trackPositions = new Map();
 
                 lines.forEach((line, index) => {
@@ -1202,7 +1196,6 @@
                         }
                     }
 
-                    // Extract track positions
                     const posMatch = line.match(/Track (\d+) \(orig: \d+\): pos\(([0-9.]+),([0-9.]+)\)/);
                     if (posMatch) {
                         const trackId = posMatch[1];
@@ -1255,15 +1248,13 @@
                     });
                 });
 
-                // Associate positions with detected barcodes
                 this.detections.forEach(detection => {
-                    // Find the closest track position in time
                     let closestTrack = null;
                     let minTimeDiff = Infinity;
                     
                     trackPositions.forEach((posData, trackId) => {
                         const timeDiff = Math.abs(posData.timestamp - detection.timestamp);
-                        if (timeDiff < minTimeDiff && timeDiff < 30) { // Within 30 seconds
+                        if (timeDiff < minTimeDiff && timeDiff < 30) {
                             minTimeDiff = timeDiff;
                             closestTrack = { trackId, ...posData };
                         }
@@ -1404,53 +1395,47 @@
 
                 const manifestStart = this.manifestData.timeRange.start;
                 const manifestEnd = this.manifestData.timeRange.end;
-                const sessionStart = this.sessionInfo.startTime;
-                const sessionEnd = this.sessionInfo.endTime;
+                
+                const targetStartSeconds = 3 * 3600 + 43 * 60 + 47;
+                const targetEndSeconds = 9 * 3600 + 41 * 60 + 28;
 
                 let analysis = '<div class="time-range-analysis">';
                 
-                if (sessionStart && sessionEnd) {
-                    const overlap = this.calculateTimeOverlap(
-                        sessionStart, sessionEnd,
-                        manifestStart, manifestEnd
-                    );
-                    
-                    const sessionDuration = sessionEnd - sessionStart;
-                    const manifestDuration = manifestEnd - manifestStart;
-                    
-                    analysis += `
-                        <p><strong>Manifest Time Range:</strong> ${new Date(manifestStart * 1000).toLocaleString()} - ${new Date(manifestEnd * 1000).toLocaleString()}</p>
-                        <p><strong>Detection Session:</strong> ${new Date(sessionStart * 1000).toLocaleString()} - ${new Date(sessionEnd * 1000).toLocaleString()}</p>
-                        <p><strong>Time Overlap:</strong> ${overlap.percentage.toFixed(1)}% (${this.formatDuration(overlap.duration)})</p>
-                    `;
-                    
-                    if (overlap.percentage < 50) {
-                        analysis += '<p style="color: #e74c3c;"><strong>Warning:</strong> Low time overlap detected.</p>';
+                analysis += `
+                    <p><strong>Manifest Time Range:</strong> ${new Date(manifestStart * 1000).toLocaleString()} - ${new Date(manifestEnd * 1000).toLocaleString()}</p>
+                    <p><strong>Target Filter Range:</strong> 3:43:47 AM - 9:41:28 AM</p>
+                `;
+                
+                let piecesInTargetRange = 0;
+                let totalPiecesWithLoadTime = 0;
+                
+                this.manifestData.items.forEach(item => {
+                    if (item.loadTimestamp) {
+                        totalPiecesWithLoadTime++;
+                        const date = new Date(item.loadTimestamp * 1000);
+                        const timeOfDay = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+                        
+                        if (timeOfDay >= targetStartSeconds && timeOfDay <= targetEndSeconds) {
+                            piecesInTargetRange++;
+                        }
                     }
-                } else {
-                    analysis += `
-                        <p><strong>Manifest Time Range:</strong> ${new Date(manifestStart * 1000).toLocaleString()} - ${new Date(manifestEnd * 1000).toLocaleString()}</p>
-                        <p style="color: #f39c12;"><strong>Note:</strong> Detection log lacks reliable timestamp data for comparison.</p>
-                    `;
+                });
+                
+                const targetRangePercentage = totalPiecesWithLoadTime > 0 ? 
+                    ((piecesInTargetRange / totalPiecesWithLoadTime) * 100).toFixed(1) : 0;
+                
+                analysis += `
+                    <p><strong>Pieces in Target Range:</strong> ${piecesInTargetRange} out of ${totalPiecesWithLoadTime} (${targetRangePercentage}%)</p>
+                `;
+                
+                if (piecesInTargetRange === 0) {
+                    analysis += '<p style="color: #e74c3c;"><strong>Warning:</strong> No manifest pieces found in target time range.</p>';
+                } else if (piecesInTargetRange < totalPiecesWithLoadTime * 0.1) {
+                    analysis += '<p style="color: #f39c12;"><strong>Note:</strong> Very few manifest pieces fall in target time range.</p>';
                 }
                 
                 analysis += '</div>';
                 container.innerHTML = analysis;
-            }
-
-            calculateTimeOverlap(sessionStart, sessionEnd, manifestStart, manifestEnd) {
-                const overlapStart = Math.max(sessionStart, manifestStart);
-                const overlapEnd = Math.min(sessionEnd, manifestEnd);
-                
-                if (overlapStart >= overlapEnd) {
-                    return { duration: 0, percentage: 0 };
-                }
-                
-                const overlapDuration = overlapEnd - overlapStart;
-                const manifestDuration = manifestEnd - manifestStart;
-                const percentage = manifestDuration > 0 ? (overlapDuration / manifestDuration) * 100 : 0;
-                
-                return { duration: overlapDuration, percentage };
             }
 
             createMethodChart() {
@@ -1464,7 +1449,7 @@
                 this.charts.method = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
-                        labels: ['DMTX', 'ZBar'],
+                        labels: ['DataMatrix', 'Barcodes'],
                         datasets: [{
                             data: [dmtxCount, zbarCount],
                             backgroundColor: ['#e74c3c', '#f39c12'],
@@ -1563,13 +1548,12 @@
                 
                 if (this.charts.position) this.charts.position.destroy();
 
-                // Collect all position data
                 const positions = [];
                 this.positionData.forEach((posArray, barcode) => {
                     posArray.forEach(pos => {
                         positions.push({
                             x: pos.x,
-                            y: 1 - pos.y, // Invert Y for chart display
+                            y: 1 - pos.y,
                             barcode: barcode,
                             source: pos.source,
                             trackId: pos.trackId
@@ -1578,7 +1562,6 @@
                 });
 
                 if (positions.length === 0) {
-                    // Show empty chart with message
                     this.charts.position = new Chart(ctx, {
                         type: 'scatter',
                         data: {
@@ -1602,7 +1585,6 @@
                     return;
                 }
 
-                // Group positions by source
                 const dmtxPositions = positions.filter(p => p.source === 'dmtx');
                 const zbarPositions = positions.filter(p => p.source === 'zbar');
 
@@ -1611,7 +1593,7 @@
                     data: {
                         datasets: [
                             {
-                                label: 'DMTX Detections',
+                                label: 'DataMatrix Detections',
                                 data: dmtxPositions.map(p => ({ x: p.x, y: p.y })),
                                 backgroundColor: '#e74c3c',
                                 borderColor: '#c0392b',
@@ -1619,7 +1601,7 @@
                                 pointHoverRadius: 12
                             },
                             {
-                                label: 'ZBar Detections',
+                                label: 'Barcode Detections',
                                 data: zbarPositions.map(p => ({ x: p.x, y: p.y })),
                                 backgroundColor: '#f39c12',
                                 borderColor: '#e67e22',
@@ -1661,7 +1643,7 @@
                                     title: function(context) {
                                         const pointIndex = context[0].dataIndex;
                                         const dataset = context[0].dataset.label;
-                                        const sourcePositions = dataset.includes('DMTX') ? dmtxPositions : zbarPositions;
+                                        const sourcePositions = dataset.includes('DataMatrix') ? dmtxPositions : zbarPositions;
                                         return `${sourcePositions[pointIndex].barcode} (Track ${sourcePositions[pointIndex].trackId})`;
                                     },
                                     label: function(context) {
