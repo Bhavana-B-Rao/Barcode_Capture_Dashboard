@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode Detection Analytics Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -213,6 +214,32 @@
             background: #229954;
         }
         
+        .export-pdf-btn {
+            background: #e74c3c;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin-left: 15px;
+        }
+        
+        .export-pdf-btn:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+        }
+        
+        .export-pdf-btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
         #fileInput, #manifestInput {
             display: none;
         }
@@ -323,6 +350,11 @@
             margin-bottom: 20px;
         }
 
+        .export-controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+
         @media (max-width: 768px) {
             .stats-grid, .manifest-stats-grid {
                 grid-template-columns: 1fr;
@@ -338,6 +370,16 @@
             }
             
             .missing-pieces-controls button {
+                width: 100%;
+            }
+            
+            .export-controls {
+                margin-top: 15px;
+            }
+            
+            .export-pdf-btn {
+                margin-left: 0;
+                margin-top: 10px;
                 width: 100%;
             }
         }
@@ -366,6 +408,10 @@
                     <h4 style="color: #2c3e50; margin-bottom: 10px;">Alternative: Copy & Paste Log Content</h4>
                     <textarea id="logContent" class="paste-area" placeholder="Paste your barcode detection log content here..."></textarea>
                     <button id="analyzeButton" class="analyze-btn" style="margin-top: 10px;">Analyze Pasted Content</button>
+                </div>
+
+                <div class="export-controls">
+                    <button id="exportPdfBtn" class="export-pdf-btn" disabled>Export Analysis Report (PDF)</button>
                 </div>
             </div>
         </div>
@@ -600,6 +646,11 @@
                     }
                 });
 
+                // PDF Export
+                document.getElementById('exportPdfBtn').addEventListener('click', () => {
+                    this.exportToPDF();
+                });
+
                 // Analysis buttons
                 document.getElementById('showHighPriorityMissedBtn').addEventListener('click', () => {
                     this.displayManifestAnalysis('highPriorityMissed');
@@ -616,6 +667,263 @@
                 document.getElementById('showExtraBtn').addEventListener('click', () => {
                     this.displayManifestAnalysis('extra');
                 });
+            }
+
+            async exportToPDF() {
+                try {
+                    this.showLoading(true);
+                    
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+                    
+                    let yPosition = 20;
+                    const pageHeight = doc.internal.pageSize.height;
+                    const marginBottom = 20;
+                    
+                    // Helper function to check if we need a new page
+                    const checkNewPage = (requiredSpace = 20) => {
+                        if (yPosition + requiredSpace > pageHeight - marginBottom) {
+                            doc.addPage();
+                            yPosition = 20;
+                            return true;
+                        }
+                        return false;
+                    };
+                    
+                    // Title
+                    doc.setFontSize(20);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Barcode Detection Analytics Report', 20, yPosition);
+                    yPosition += 15;
+                    
+                    // Report generation date
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`Generated: ${new Date().toLocaleString()}`, 20, yPosition);
+                    yPosition += 20;
+                    
+                    // Session Information
+                    if (this.sessionInfo.startTime && this.sessionInfo.endTime) {
+                        checkNewPage(30);
+                        doc.setFontSize(14);
+                        doc.setFont(undefined, 'bold');
+                        doc.text('Session Information', 20, yPosition);
+                        yPosition += 10;
+                        
+                        doc.setFontSize(10);
+                        doc.setFont(undefined, 'normal');
+                        const sessionStart = new Date(this.sessionInfo.startTime * 1000);
+                        const sessionEnd = new Date(this.sessionInfo.endTime * 1000);
+                        const duration = this.sessionInfo.endTime - this.sessionInfo.startTime;
+                        
+                        doc.text(`Start Time: ${sessionStart.toLocaleString()}`, 20, yPosition);
+                        yPosition += 6;
+                        doc.text(`End Time: ${sessionEnd.toLocaleString()}`, 20, yPosition);
+                        yPosition += 6;
+                        doc.text(`Duration: ${this.formatDuration(duration)}`, 20, yPosition);
+                        yPosition += 15;
+                    }
+                    
+                    // Detection Summary
+                    checkNewPage(50);
+                    doc.setFontSize(14);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Detection Summary', 20, yPosition);
+                    yPosition += 10;
+                    
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
+                    
+                    const dmtxCount = this.detections.filter(d => d.source === 'dmtx').length;
+                    const zbarCount = this.detections.filter(d => d.source === 'zbar').length;
+                    const totalDetections = this.detections.filter(d => 
+                        d.source !== 'completion' && 
+                        d.data !== 'TASK_SUCCESS' && 
+                        !d.data.startsWith('TRACK_')
+                    ).length;
+                    
+                    const uniqueDmtxBarcodes = new Set();
+                    const uniqueZbarBarcodes = new Set();
+                    
+                    this.uniqueBarcodes.forEach((barcode, barcodeData) => {
+                        if (barcodeData.length > 2 && !barcodeData.startsWith('TRACK_') && barcodeData !== 'TASK_SUCCESS') {
+                            if (barcode.sources.has('dmtx')) {
+                                uniqueDmtxBarcodes.add(barcodeData);
+                            }
+                            if (barcode.sources.has('zbar')) {
+                                uniqueZbarBarcodes.add(barcodeData);
+                            }
+                        }
+                    });
+                    
+                    doc.text(`Total Valid Detections: ${totalDetections}`, 20, yPosition);
+                    yPosition += 6;
+                    doc.text(`DataMatrix Detections: ${dmtxCount}`, 20, yPosition);
+                    yPosition += 6;
+                    doc.text(`Barcode Detections: ${zbarCount}`, 20, yPosition);
+                    yPosition += 6;
+                    doc.text(`Unique DataMatrix: ${uniqueDmtxBarcodes.size}`, 20, yPosition);
+                    yPosition += 6;
+                    doc.text(`Unique Barcodes: ${uniqueZbarBarcodes.size}`, 20, yPosition);
+                    yPosition += 6;
+                    doc.text(`Total Unique: ${uniqueDmtxBarcodes.size + uniqueZbarBarcodes.size}`, 20, yPosition);
+                    yPosition += 15;
+                    
+                    // Manifest Validation (if available)
+                    if (this.manifestData) {
+                        checkNewPage(80);
+                        doc.setFontSize(14);
+                        doc.setFont(undefined, 'bold');
+                        doc.text('Manifest Validation Analysis', 20, yPosition);
+                        yPosition += 10;
+                        
+                        doc.setFontSize(10);
+                        doc.setFont(undefined, 'normal');
+                        
+                        const highPriorityTotal = this.validationResults.relevantPieces.size;
+                        const highPriorityCaptured = this.validationResults.highPriorityCaptured.size;
+                        const highPriorityMissed = this.validationResults.highPriorityMissed.size;
+                        const lowPriorityCaptured = this.validationResults.lowPriorityCaptured.size;
+                        const extraCount = this.validationResults.extra.size;
+                        
+                        const highPriorityRate = highPriorityTotal > 0 ? Math.round((highPriorityCaptured / highPriorityTotal) * 100) : 0;
+                        const overallCaptureRate = this.manifestData.totalPieces > 0 ? 
+                            Math.round(((highPriorityCaptured + lowPriorityCaptured) / this.manifestData.totalPieces) * 100) : 0;
+                        
+                        doc.text(`Total Manifest Pieces: ${this.manifestData.totalPieces}`, 20, yPosition);
+                        yPosition += 6;
+                        doc.text(`High Priority Pieces: ${highPriorityTotal}`, 20, yPosition);
+                        yPosition += 6;
+                        doc.text(`High Priority Captured: ${highPriorityCaptured}`, 20, yPosition);
+                        yPosition += 6;
+                        doc.text(`High Priority Missed: ${highPriorityMissed}`, 20, yPosition);
+                        yPosition += 6;
+                        doc.text(`Low Priority Captured: ${lowPriorityCaptured}`, 20, yPosition);
+                        yPosition += 6;
+                        doc.text(`Extra Detections: ${extraCount}`, 20, yPosition);
+                        yPosition += 6;
+                        doc.text(`High Priority Success Rate: ${highPriorityRate}%`, 20, yPosition);
+                        yPosition += 6;
+                        doc.text(`Overall Capture Rate: ${overallCaptureRate}%`, 20, yPosition);
+                        yPosition += 15;
+                        
+                        // High Priority Missed Details
+                        if (this.validationResults.highPriorityMissed.size > 0) {
+                            checkNewPage(30);
+                            doc.setFontSize(12);
+                            doc.setFont(undefined, 'bold');
+                            doc.text('High Priority Missed Pieces', 20, yPosition);
+                            yPosition += 8;
+                            
+                            doc.setFontSize(9);
+                            doc.setFont(undefined, 'normal');
+                            
+                            const missedArray = Array.from(this.validationResults.highPriorityMissed).slice(0, 20);
+                            missedArray.forEach(pieceNumber => {
+                                checkNewPage(8);
+                                const manifestItem = this.manifestPieces.get(pieceNumber);
+                                const relevantInfo = this.validationResults.relevantPieces.get(pieceNumber);
+                                
+                                let text = `• ${pieceNumber}`;
+                                if (manifestItem) {
+                                    text += ` (${manifestItem.weight}lbs, ${manifestItem.dimensions.length}"×${manifestItem.dimensions.width}"×${manifestItem.dimensions.height}")`;
+                                }
+                                if (relevantInfo) {
+                                    text += ` - ${relevantInfo.criteriaReason}`;
+                                }
+                                
+                                doc.text(text, 25, yPosition);
+                                yPosition += 6;
+                            });
+                            
+                            if (this.validationResults.highPriorityMissed.size > 20) {
+                                doc.text(`... and ${this.validationResults.highPriorityMissed.size - 20} more pieces`, 25, yPosition);
+                                yPosition += 6;
+                            }
+                            yPosition += 10;
+                        }
+                    }
+                    
+                    // Add charts
+                    checkNewPage(120);
+                    doc.setFontSize(14);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Detection Charts', 20, yPosition);
+                    yPosition += 10;
+                    
+                    // Method Chart
+                    if (this.charts.method) {
+                        try {
+                            const methodChartImage = this.charts.method.toBase64Image();
+                            doc.addImage(methodChartImage, 'PNG', 20, yPosition, 80, 60);
+                            yPosition += 70;
+                        } catch (e) {
+                            doc.setFontSize(10);
+                            doc.text('Detection Methods chart could not be rendered', 20, yPosition);
+                            yPosition += 15;
+                        }
+                    }
+                    
+                    // Timeline Chart
+                    checkNewPage(70);
+                    if (this.charts.timeline) {
+                        try {
+                            const timelineChartImage = this.charts.timeline.toBase64Image();
+                            doc.addImage(timelineChartImage, 'PNG', 20, yPosition, 160, 60);
+                            yPosition += 70;
+                        } catch (e) {
+                            doc.setFontSize(10);
+                            doc.text('Timeline chart could not be rendered', 20, yPosition);
+                            yPosition += 15;
+                        }
+                    }
+                    
+                    // Manifest Breakdown Chart
+                    if (this.charts.manifestBreakdown) {
+                        checkNewPage(70);
+                        try {
+                            const manifestChartImage = this.charts.manifestBreakdown.toBase64Image();
+                            doc.addImage(manifestChartImage, 'PNG', 20, yPosition, 80, 60);
+                            yPosition += 70;
+                        } catch (e) {
+                            doc.setFontSize(10);
+                            doc.text('Manifest breakdown chart could not be rendered', 20, yPosition);
+                            yPosition += 15;
+                        }
+                    }
+                    
+                    // Top Unique Barcodes
+                    checkNewPage(50);
+                    doc.setFontSize(14);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Top Detected Barcodes', 20, yPosition);
+                    yPosition += 10;
+                    
+                    doc.setFontSize(9);
+                    doc.setFont(undefined, 'normal');
+                    
+                    const topBarcodes = Array.from(this.uniqueBarcodes.values())
+                        .filter(b => b.data.length > 2 && !b.data.startsWith('TRACK_') && b.data !== 'TASK_SUCCESS')
+                        .sort((a, b) => b.count - a.count)
+                        .slice(0, 15);
+                    
+                    topBarcodes.forEach(barcode => {
+                        checkNewPage(8);
+                        const sources = Array.from(barcode.sources).join(', ');
+                        doc.text(`• ${barcode.data} (${barcode.count} detections, ${sources})`, 25, yPosition);
+                        yPosition += 6;
+                    });
+                    
+                    // Save the PDF
+                    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                    doc.save(`barcode-analysis-report-${timestamp}.pdf`);
+                    
+                    this.showLoading(false);
+                    
+                } catch (error) {
+                    this.showError('Error generating PDF: ' + error.message);
+                    this.showLoading(false);
+                }
             }
 
             async analyzeManifestFile(file) {
@@ -1013,6 +1321,9 @@
                     document.getElementById('manifestAnalysisCard').style.display = 'block';
                     document.getElementById('manifestBreakdownCard').style.display = 'block';
                 }
+
+                // Enable PDF export button
+                document.getElementById('exportPdfBtn').disabled = false;
             }
 
             createCharts() {
