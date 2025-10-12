@@ -524,14 +524,14 @@
             <div class="validation-details" style="margin-top: 20px;">
                 <h4 style="color: #2c3e50; margin-bottom: 15px;">Priority Classification (Two-Step Filtering)</h4>
                 <div class="time-range-info" style="background: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #27ae60; margin-bottom: 15px;">
-                    <p><strong>Step 1:</strong> Filter to packages loaded between 3:43:47 AM - 9:41:28 AM</p>
+                    <p><strong>Step 1:</strong> Filter to packages loaded between 2:00:00 AM - 9:00:00 AM</p>
                     <p><strong>Step 2:</strong> From that subset, identify packages with either:</p>
                     <p style="margin-left: 20px;">• Dwell time > 3 minutes, OR</p>
                     <p style="margin-left: 20px;">• Missing unloading timestamp</p>
                     <p><strong>Low Priority:</strong> All other detected packages in manifest</p>
                     <p><strong>Extra Detections:</strong> Packages detected but not found in manifest</p>
                     <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
-                        <em>High priority classification uses specific time range (3:43:47 AM - 9:41:28 AM) as primary filter</em>
+                        <em>High priority classification uses 2:00 AM - 9:00 AM time window as primary filter</em>
                     </p>
                 </div>
                 <h4 style="color: #2c3e50; margin-bottom: 15px;">Time Range Validation</h4>
@@ -646,12 +646,10 @@
                     }
                 });
 
-                // PDF Export
                 document.getElementById('exportPdfBtn').addEventListener('click', () => {
                     this.exportToPDF();
                 });
 
-                // Analysis buttons
                 document.getElementById('showHighPriorityMissedBtn').addEventListener('click', () => {
                     this.displayManifestAnalysis('highPriorityMissed');
                 });
@@ -680,7 +678,6 @@
                     const pageHeight = doc.internal.pageSize.height;
                     const marginBottom = 20;
                     
-                    // Helper function to check if we need a new page
                     const checkNewPage = (requiredSpace = 20) => {
                         if (yPosition + requiredSpace > pageHeight - marginBottom) {
                             doc.addPage();
@@ -690,19 +687,16 @@
                         return false;
                     };
                     
-                    // Title
                     doc.setFontSize(20);
                     doc.setFont(undefined, 'bold');
                     doc.text('Barcode Detection Analytics Report', 20, yPosition);
                     yPosition += 15;
                     
-                    // Report generation date
                     doc.setFontSize(10);
                     doc.setFont(undefined, 'normal');
                     doc.text(`Generated: ${new Date().toLocaleString()}`, 20, yPosition);
                     yPosition += 20;
                     
-                    // Session Information
                     if (this.sessionInfo.startTime && this.sessionInfo.endTime) {
                         checkNewPage(30);
                         doc.setFontSize(14);
@@ -724,7 +718,6 @@
                         yPosition += 15;
                     }
                     
-                    // Detection Summary
                     checkNewPage(50);
                     doc.setFontSize(14);
                     doc.setFont(undefined, 'bold');
@@ -769,7 +762,6 @@
                     doc.text(`Total Unique: ${uniqueDmtxBarcodes.size + uniqueZbarBarcodes.size}`, 20, yPosition);
                     yPosition += 15;
                     
-                    // Manifest Validation (if available)
                     if (this.manifestData) {
                         checkNewPage(80);
                         doc.setFontSize(14);
@@ -792,7 +784,7 @@
                         
                         doc.text(`Total Manifest Pieces: ${this.manifestData.totalPieces}`, 20, yPosition);
                         yPosition += 6;
-                        doc.text(`High Priority Pieces: ${highPriorityTotal}`, 20, yPosition);
+                        doc.text(`High Priority Pieces (2am-9am filter): ${highPriorityTotal}`, 20, yPosition);
                         yPosition += 6;
                         doc.text(`High Priority Captured: ${highPriorityCaptured}`, 20, yPosition);
                         yPosition += 6;
@@ -807,7 +799,6 @@
                         doc.text(`Overall Capture Rate: ${overallCaptureRate}%`, 20, yPosition);
                         yPosition += 15;
                         
-                        // High Priority Missed Details
                         if (this.validationResults.highPriorityMissed.size > 0) {
                             checkNewPage(30);
                             doc.setFontSize(12);
@@ -844,14 +835,12 @@
                         }
                     }
                     
-                    // Add charts
                     checkNewPage(120);
                     doc.setFontSize(14);
                     doc.setFont(undefined, 'bold');
                     doc.text('Detection Charts', 20, yPosition);
                     yPosition += 10;
                     
-                    // Method Chart
                     if (this.charts.method) {
                         try {
                             const methodChartImage = this.charts.method.toBase64Image();
@@ -864,7 +853,6 @@
                         }
                     }
                     
-                    // Timeline Chart
                     checkNewPage(70);
                     if (this.charts.timeline) {
                         try {
@@ -878,7 +866,6 @@
                         }
                     }
                     
-                    // Manifest Breakdown Chart
                     if (this.charts.manifestBreakdown) {
                         checkNewPage(70);
                         try {
@@ -892,7 +879,6 @@
                         }
                     }
                     
-                    // Top Unique Barcodes
                     checkNewPage(50);
                     doc.setFontSize(14);
                     doc.setFont(undefined, 'bold');
@@ -914,7 +900,6 @@
                         yPosition += 6;
                     });
                     
-                    // Save the PDF
                     const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
                     doc.save(`barcode-analysis-report-${timestamp}.pdf`);
                     
@@ -1032,9 +1017,9 @@
                     }
                 });
 
-                // Define specific time range for two-step filtering (3:43:47 AM - 9:41:28 AM)
-                const targetTimeStart = 3 * 3600 + 43 * 60 + 47; // 13427 seconds
-                const targetTimeEnd = 9 * 3600 + 41 * 60 + 28;   // 34888 seconds
+                // Updated time range: 2:00:00 AM to 9:00:00 AM
+                const targetTimeStart = 2 * 3600;  // 2:00:00 AM = 7200 seconds
+                const targetTimeEnd = 9 * 3600;    // 9:00:00 AM = 32400 seconds
 
                 const getTimeOfDay = (timestamp) => {
                     if (!timestamp) return null;
@@ -1042,7 +1027,6 @@
                     return date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
                 };
 
-                // Debug to see what's happening
                 let piecesInTimeRange = 0;
                 let noUnloadInRange = 0;
                 let dwellTimeInRange = 0;
@@ -1064,9 +1048,9 @@
                     }
                 });
 
-                console.log('Two-step filtering DEBUG:', {
-                    targetTimeStart: targetTimeStart + ' seconds (3:43:47 AM)',
-                    targetTimeEnd: targetTimeEnd + ' seconds (9:41:28 AM)', 
+                console.log('Two-step filtering DEBUG (2am-9am):', {
+                    targetTimeStart: targetTimeStart + ' seconds (2:00:00 AM)',
+                    targetTimeEnd: targetTimeEnd + ' seconds (9:00:00 AM)', 
                     totalManifestPieces: this.manifestPieces.size,
                     piecesInTimeRange: piecesInTimeRange,
                     noUnloadInTimeRange: noUnloadInRange,
@@ -1084,22 +1068,21 @@
                     
                     const loadTimeOfDay = getTimeOfDay(manifestItem.loadTimestamp);
                     if (loadTimeOfDay < targetTimeStart || loadTimeOfDay > targetTimeEnd) {
-                        return { isHigh: false, reason: 'Load time outside target range (3:43:47 AM - 9:41:28 AM)' };
+                        return { isHigh: false, reason: 'Load time outside target range (2:00:00 AM - 9:00:00 AM)' };
                     }
                     
                     if (!hasUnloadTimestamp) {
-                        return { isHigh: true, reason: 'No unloading timestamp (within time range)' };
+                        return { isHigh: true, reason: 'No unloading timestamp (within 2am-9am range)' };
                     } else if (hasLoadTimestamp && hasUnloadTimestamp) {
                         const dwellTime = Math.abs(manifestItem.unloadTimestamp - manifestItem.loadTimestamp);
                         if (dwellTime > 180) {
-                            return { isHigh: true, reason: `Dwell time: ${this.formatDuration(dwellTime)} (within time range)` };
+                            return { isHigh: true, reason: `Dwell time: ${this.formatDuration(dwellTime)} (within 2am-9am range)` };
                         }
                     }
                     
-                    return { isHigh: false, reason: 'Does not meet dwell time criteria (within time range)' };
+                    return { isHigh: false, reason: 'Does not meet dwell time criteria (within 2am-9am range)' };
                 };
 
-                // For each detected piece, classify based on manifest data
                 detectedPieces.forEach(pieceNumber => {
                     const manifestItem = this.manifestPieces.get(pieceNumber);
                     
@@ -1131,7 +1114,6 @@
                     }
                 });
 
-                // Find high priority pieces that were missed
                 this.manifestPieces.forEach((manifestItem, pieceNumber) => {
                     if (detectedPieces.has(pieceNumber)) {
                         return;
@@ -1161,8 +1143,8 @@
                 this.manifestData.filteredTotalPieces = this.validationResults.relevantPieces.size;
                 this.manifestData.sessionTotalPieces = this.manifestPieces.size;
 
-                console.log('Two-step filtering validation results:', {
-                    timeRange: '3:43:47 AM - 9:41:28 AM',
+                console.log('Two-step filtering validation results (2am-9am):', {
+                    timeRange: '2:00:00 AM - 9:00:00 AM',
                     totalManifestPieces: this.manifestPieces.size,
                     highPriorityPieces: this.validationResults.relevantPieces.size,
                     highPriorityCaptured: this.validationResults.highPriorityCaptured.size,
@@ -1322,7 +1304,6 @@
                     document.getElementById('manifestBreakdownCard').style.display = 'block';
                 }
 
-                // Enable PDF export button
                 document.getElementById('exportPdfBtn').disabled = false;
             }
 
@@ -1707,14 +1688,14 @@
                 const manifestStart = this.manifestData.timeRange.start;
                 const manifestEnd = this.manifestData.timeRange.end;
                 
-                const targetStartSeconds = 3 * 3600 + 43 * 60 + 47;
-                const targetEndSeconds = 9 * 3600 + 41 * 60 + 28;
+                const targetStartSeconds = 2 * 3600;     // 2:00:00 AM
+                const targetEndSeconds = 9 * 3600;       // 9:00:00 AM
 
                 let analysis = '<div class="time-range-analysis">';
                 
                 analysis += `
                     <p><strong>Manifest Time Range:</strong> ${new Date(manifestStart * 1000).toLocaleString()} - ${new Date(manifestEnd * 1000).toLocaleString()}</p>
-                    <p><strong>Target Filter Range:</strong> 3:43:47 AM - 9:41:28 AM</p>
+                    <p><strong>Target Filter Range:</strong> 2:00:00 AM - 9:00:00 AM</p>
                 `;
                 
                 let piecesInTargetRange = 0;
@@ -1740,9 +1721,9 @@
                 `;
                 
                 if (piecesInTargetRange === 0) {
-                    analysis += '<p style="color: #e74c3c;"><strong>Warning:</strong> No manifest pieces found in target time range.</p>';
+                    analysis += '<p style="color: #e74c3c;"><strong>Warning:</strong> No manifest pieces found in target time range (2am-9am).</p>';
                 } else if (piecesInTargetRange < totalPiecesWithLoadTime * 0.1) {
-                    analysis += '<p style="color: #f39c12;"><strong>Note:</strong> Very few manifest pieces fall in target time range.</p>';
+                    analysis += '<p style="color: #f39c12;"><strong>Note:</strong> Very few manifest pieces fall in target time range (2am-9am).</p>';
                 }
                 
                 analysis += '</div>';
